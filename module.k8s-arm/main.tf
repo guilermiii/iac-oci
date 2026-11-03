@@ -1,4 +1,4 @@
-# Módulo blog_do_zeca
+# Módulo cluster k8s
 # Responsável pelo provisionamento do cluster Kubernetes (kubeadm) em instâncias ARM Ampere A1
 # e do Load Balancer Always Free com IP público fixo reservado.
 

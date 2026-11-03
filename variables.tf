@@ -21,7 +21,7 @@ variable "ssh_public_key_path" {
 
 variable "tag_project_arm" {
   type        = string
-  description = "Valor da tag Project para as instâncias ARM (ex: Blog-do-Zeca)"
+  description = "Valor da tag Project para as instâncias ARM"
 }
 
 variable "tag_project_vault" {

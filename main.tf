@@ -2,7 +2,7 @@
 
 # Módulo 1: Cluster Kubernetes ARM (Blog do Zeca) + Load Balancer Flexível com IP Fixo Reservado
 module "blog_do_zeca" {
-  source = "./blog_do_zeca"
+  source = "./module.k8s-arm"
 
   compartment_ocid         = var.compartment_ocid
   availability_domain_name = data.oci_identity_availability_domains.ads.availability_domains[0].name
@@ -18,7 +18,7 @@ module "blog_do_zeca" {
 
 # Módulo 2: Instâncias x86 Micro (Vault & VPN Management) em Subnet Privada
 module "x86" {
-  source = "./x86"
+  source = "./module.x86-instances"
 
   compartment_ocid         = var.compartment_ocid
   availability_domain_name = data.oci_identity_availability_domains.ads.availability_domains[0].name

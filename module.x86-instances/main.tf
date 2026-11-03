@@ -1,4 +1,4 @@
-# Módulo x86
+# Módulo instancias x86
 # Responsável pelo provisionamento das instâncias x86 VM.Standard.E2.1.Micro
 # dedicadas a Vault e VPN Management em Subnet Privada (sem tráfego público de entrada).
 
