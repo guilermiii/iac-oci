@@ -15,7 +15,7 @@ O projeto adota os mais elevados padrões da indústria em **segurança em nuvem
 ## 🏗️ Arquitetura da Solução
 
 <p align="center">
-  <img src="assets/architecture.png" alt="Arquitetura OCI Always Free com Kubernetes ARM, Instâncias x86 e GitOps OIDC" width="100%">
+  <img src="assets/architecture-dark-2d.png" alt="Arquitetura OCI Always Free com Kubernetes ARM, Instâncias x86 e GitOps OIDC" width="100%">
 </p>
 
 <details>
