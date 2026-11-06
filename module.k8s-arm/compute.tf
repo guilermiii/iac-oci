@@ -28,6 +28,10 @@ resource "oci_core_instance" "control_plane" {
     user_data           = base64encode(file("${path.module}/cli/controlplane.sh"))
   }
 
+  lifecycle {
+    ignore_changes = [metadata]
+  }
+
   freeform_tags = {
     "Project" = var.tag_project
   }
@@ -61,6 +65,10 @@ resource "oci_core_instance" "worker" {
   metadata = {
     ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/worker.sh"))
+  }
+
+  lifecycle {
+    ignore_changes = [metadata]
   }
 
   freeform_tags = {
