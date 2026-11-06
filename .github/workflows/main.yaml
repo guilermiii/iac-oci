@@ -61,4 +61,8 @@ jobs:
         run: terraform plan -input=false
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        run: |
+          terraform apply -auto-approve -input=false 2>&1 | tee /tmp/apply_log.txt || {
+            echo "::error title=TF_ERR::$(tail -n 25 /tmp/apply_log.txt | tr '\n' ' ')"
+            exit 1
+          }
