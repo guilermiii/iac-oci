@@ -111,4 +111,12 @@ jobs:
         run: terraform plan -input=false
 
       - name: Terraform Apply
-        run: terraform apply -auto-approve -input=false
+        run: |
+          set +e
+          terraform apply -auto-approve -input=false 2>&1 | tee /tmp/apply_log.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          if [ $EXIT_CODE -ne 0 ]; then
+            APPLY_ERR=$(tail -n 25 /tmp/apply_log.txt | tr '\n' ' ')
+            echo "::error title=TF_APPLY_ERR::Exit $EXIT_CODE: $APPLY_ERR"
+            exit $EXIT_CODE
+          fi
