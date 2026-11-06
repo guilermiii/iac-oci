@@ -23,6 +23,10 @@ resource "oci_core_instance" "vault" {
     user_data           = base64encode(file("${path.module}/cli/vault.sh"))
   }
 
+  lifecycle {
+    ignore_changes = [metadata]
+  }
+
   freeform_tags = {
     "Project" = var.tag_vault
   }
@@ -51,6 +55,10 @@ resource "oci_core_instance" "vpn" {
   metadata = {
     ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/vpn.sh"))
+  }
+
+  lifecycle {
+    ignore_changes = [metadata]
   }
 
   freeform_tags = {
