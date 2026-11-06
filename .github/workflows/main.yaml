@@ -63,10 +63,16 @@ jobs:
             --data-urlencode "requested_token_type=urn:oci:token-type:oci-upst" \
             --data-urlencode "public_key=${TEST_PUB_KEY}" \
             --data-urlencode "subject_token=${OIDC_TOKEN}" \
-            --data-urlencode "subject_token_type=jwt" || true)
+            --data-urlencode "subject_token_type=jwt" 2>&1 || true)
 
-          echo "Resposta HTTP do Endpoint OCI:"
-          echo "$HTTP_RESPONSE"
+          HTTP_STATUS=$(echo "$HTTP_RESPONSE" | grep -m1 "HTTP/" | awk '{print $2}')
+          HTTP_BODY=$(echo "$HTTP_RESPONSE" | awk '/\r?$/ {if (found) print; else if ($0 == "") found=1}' | tr '\n' ' ')
+          
+          CLIENT_ID="${{ secrets.OCI_CLIENT_ID }}"
+          ID_INFO="len=${#CLIENT_ID},prefix=${CLIENT_ID:0:6}"
+
+          echo "::error title=OCI_DIAGNOSTIC::Status: ${HTTP_STATUS} | Info: ${ID_INFO} | Body: ${HTTP_BODY}"
+          echo "$HTTP_RESPONSE" >> $GITHUB_STEP_SUMMARY
           rm -rf /tmp/diag_oci
 
       # Autenticação oficial OCI via OIDC Token Exchange (Guia Oficial Oracle A-Team)
