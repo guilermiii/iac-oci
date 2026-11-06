@@ -42,6 +42,7 @@ jobs:
             JWT_PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d'.' -f2 | tr '_-' '/+' | base64 -d 2>/dev/null || true)
             echo "Claims do GitHub Actions JWT:"
             echo "$JWT_PAYLOAD" | jq '{iss, aud, sub, repository, ref}' || echo "$JWT_PAYLOAD"
+            echo "::error title=JWT_CLAIMS::$(echo "$JWT_PAYLOAD" | jq -c '{iss, aud, sub, repository, repository_owner, ref, job_workflow_ref}')"
           else
             echo "::warning::Falha ao obter token com audience https://cloud.oracle.com"
           fi
