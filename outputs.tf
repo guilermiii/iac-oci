@@ -14,12 +14,12 @@ output "k8s_worker_private_ip" {
 }
 
 output "vault_private_ip" {
-  value       = module.x86.vault_private_ip
+  value       = var.enable_x86_instances ? module.x86[0].vault_private_ip : null
   description = "IP Privado da instância x86 Vault"
 }
 
 output "vpn_private_ip" {
-  value       = module.x86.vpn_private_ip
+  value       = var.enable_x86_instances ? module.x86[0].vpn_private_ip : null
   description = "IP Privado da instância x86 VPN Management"
 }
 

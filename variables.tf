@@ -55,3 +55,9 @@ variable "bastion_client_cidr_block_allow_list" {
   description = "Lista de blocos CIDR autorizados a conectar ao OCI Bastion (ex: [\"0.0.0.0/0\"])"
   default     = ["0.0.0.0/0"]
 }
+
+variable "enable_x86_instances" {
+  type        = bool
+  description = "Controla o provisionamento das instâncias x86 Micro (Vault e VPN). Mantenha false caso o limite Always Free de 2 instâncias Micro já esteja em uso no tenancy."
+  default     = false
+}

@@ -19,6 +19,7 @@ module "blog_do_zeca" {
 
 # Módulo 2: Instâncias x86 Micro (Vault & VPN Management) em Subnet Privada
 module "x86" {
+  count  = var.enable_x86_instances ? 1 : 0
   source = "./module.x86-instances"
 
   compartment_ocid         = var.compartment_ocid

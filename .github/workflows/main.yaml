@@ -23,65 +23,15 @@ jobs:
       TF_VAR_ssh_public_key_value: ${{ secrets.PUBLIC_KEY_VALUE }}
       TF_VAR_auth: "SecurityToken"
       TF_VAR_oci_config_profile: "DEFAULT"
-      DEBUG: "true"
 
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
-      # Diagnóstico preliminar e teste de endpoint OCI
-      - name: Diagnóstico OIDC e Teste de Endpoint OCI
+      - name: Sanitizar URL do Domínio OCI
         run: |
-          set -e
-          echo "=== 1. Inspecionando Token OIDC do GitHub Actions ==="
-          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://cloud.oracle.com" | jq -r '.value // empty')
-
-          if [ -n "$OIDC_TOKEN" ]; then
-            echo "Token OIDC obtido com sucesso."
-            JWT_PAYLOAD=$(echo "$OIDC_TOKEN" | cut -d'.' -f2 | tr '_-' '/+' | base64 -d 2>/dev/null || true)
-            echo "Claims do GitHub Actions JWT:"
-            echo "$JWT_PAYLOAD" | jq '{iss, aud, sub, repository, ref}' || echo "$JWT_PAYLOAD"
-            echo "::error title=JWT_CLAIMS::$(echo "$JWT_PAYLOAD" | jq -c '{iss, aud, sub, repository, repository_owner, ref, job_workflow_ref}')"
-          else
-            echo "::warning::Falha ao obter token com audience https://cloud.oracle.com"
-          fi
-
-          echo "=== 2. Sanitizando URL do Domínio OCI ==="
           RAW_URL="${{ secrets.OCI_DOMAIN_URL }}"
-          CLEAN_URL="${RAW_URL%/}"
-          echo "CLEAN_DOMAIN_URL=${CLEAN_URL}" >> $GITHUB_ENV
-
-          echo "=== 3. Teste 1: Autenticação Básica (client_credentials) ==="
-          RESP1=$(curl -sS -i -X POST "${CLEAN_URL}/oauth2/v1/token" \
-            -u "${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "grant_type=client_credentials" \
-            --data-urlencode "scope=urn:opc:idm:__myscopes__" 2>&1 || true)
-          STATUS1=$(echo "$RESP1" | grep -m1 "HTTP/" | awk '{print $2}')
-          BODY1=$(echo "$RESP1" | sed '1,/^\r\{0,1\}$/d' | tr '\n' ' ')
-
-          echo "=== 4. Teste 2: Token Exchange (UPST) ==="
-          mkdir -p /tmp/diag_oci
-          openssl genrsa -out /tmp/diag_oci/test_key.pem 2048 2>/dev/null
-          TEST_PUB_KEY=$(openssl rsa -in /tmp/diag_oci/test_key.pem -pubout -outform DER 2>/dev/null | base64 -w 0)
-
-          RESP2=$(curl -sS -i -X POST "${CLEAN_URL}/oauth2/v1/token" \
-            -u "${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}" \
-            -H "Content-Type: application/x-www-form-urlencoded" \
-            --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
-            --data-urlencode "requested_token_type=urn:oci:token-type:oci-upst" \
-            --data-urlencode "public_key=${TEST_PUB_KEY}" \
-            --data-urlencode "subject_token=${OIDC_TOKEN}" \
-            --data-urlencode "subject_token_type=jwt" 2>&1 || true)
-          STATUS2=$(echo "$RESP2" | grep -m1 "HTTP/" | awk '{print $2}')
-          BODY2=$(echo "$RESP2" | sed '1,/^\r\{0,1\}$/d' | tr '\n' ' ')
-
-          CLIENT_ID="${{ secrets.OCI_CLIENT_ID }}"
-          echo "::error title=TEST1_CLIENT_CRED::Status: ${STATUS1} | Body: ${BODY1} | ID_prefix: ${CLIENT_ID:0:8}"
-          echo "::error title=TEST2_TOKEN_EXCHANGE::Status: ${STATUS2} | Body: ${BODY2}"
-
-          rm -rf /tmp/diag_oci
+          echo "CLEAN_DOMAIN_URL=${RAW_URL%/}" >> $GITHUB_ENV
 
       # Autenticação oficial OCI via OIDC Token Exchange (Guia Oficial Oracle A-Team)
       - name: Run OCI Token Exchange Action
@@ -105,18 +55,10 @@ jobs:
 
       - name: Terraform Init
         run: |
-          terraform init -backend-config="auth=SecurityToken" -backend-config="config_file_profile=DEFAULT"
+          terraform init -input=false -backend-config="auth=SecurityToken" -backend-config="config_file_profile=DEFAULT"
 
       - name: Terraform Plan
         run: terraform plan -input=false
 
       - name: Terraform Apply
-        run: |
-          set +e
-          terraform apply -auto-approve -input=false 2>&1 | tee /tmp/apply_log.txt
-          EXIT_CODE=${PIPESTATUS[0]}
-          if [ $EXIT_CODE -ne 0 ]; then
-            APPLY_ERR=$(tail -n 25 /tmp/apply_log.txt | tr '\n' ' ')
-            echo "::error title=TF_APPLY_ERR::Exit $EXIT_CODE: $APPLY_ERR"
-            exit $EXIT_CODE
-          fi
+        run: terraform apply -auto-approve -input=false
