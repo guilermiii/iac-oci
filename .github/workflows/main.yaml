@@ -21,6 +21,7 @@ jobs:
       TF_VAR_compartment_ocid: ${{ secrets.OCI_COMPARTMENT_OCID || 'ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a' }}
       TF_VAR_region: ${{ secrets.OCI_REGION }}
       TF_VAR_ssh_public_key_value: ${{ secrets.PUBLIC_KEY_VALUE }}
+      TF_VAR_enable_x86_instances: "true"
       TF_VAR_auth: "SecurityToken"
       TF_VAR_oci_config_profile: "DEFAULT"
 

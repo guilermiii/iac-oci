@@ -59,5 +59,5 @@ variable "bastion_client_cidr_block_allow_list" {
 variable "enable_x86_instances" {
   type        = bool
   description = "Controla o provisionamento das instâncias x86 Micro (Vault e VPN). Mantenha false caso o limite Always Free de 2 instâncias Micro já esteja em uso no tenancy."
-  default     = false
+  default     = true
 }

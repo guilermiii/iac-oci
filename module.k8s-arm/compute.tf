@@ -29,7 +29,7 @@ resource "oci_core_instance" "control_plane" {
   }
 
   lifecycle {
-    ignore_changes = [metadata]
+    ignore_changes = [metadata, source_details[0].boot_volume_size_in_gbs]
   }
 
   freeform_tags = {
@@ -68,7 +68,7 @@ resource "oci_core_instance" "worker" {
   }
 
   lifecycle {
-    ignore_changes = [metadata]
+    ignore_changes = [metadata, source_details[0].boot_volume_size_in_gbs]
   }
 
   freeform_tags = {

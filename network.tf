@@ -129,3 +129,20 @@ resource "oci_core_subnet" "private_subnet" {
   security_list_ids          = [oci_core_security_list.private_security_list.id]
   prohibit_public_ip_on_vnic = true
 }
+
+# ==============================================================================
+# Gestão Explícita de Recursos Default da VCN (Prática recomendada CIS Benchmark)
+# Mantém os recursos default rastreados no Terraform e limpos/isolados
+# ==============================================================================
+
+# Route Table Padrão da VCN (isolada sem rotas para assegurar uso de rt-public e rt-private)
+resource "oci_core_default_route_table" "default_route_table" {
+  manage_default_resource_id = oci_core_vcn.main.default_route_table_id
+  display_name               = "rt-default"
+}
+
+# Security List Padrão da VCN (sem regras permissivas padrão para assegurar uso de seclists dedicadas)
+resource "oci_core_default_security_list" "default_security_list" {
+  manage_default_resource_id = oci_core_vcn.main.default_security_list_id
+  display_name               = "seclist-default"
+}

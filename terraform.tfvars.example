@@ -14,3 +14,6 @@ tag_project_vpn   = "VpnManagement"
 
 # OCI Bastion Allow List
 bastion_client_cidr_block_allow_list = ["0.0.0.0/0"]
+
+# Controle de Instâncias x86 Micro (Vault & VPN)
+enable_x86_instances = true
