@@ -1,0 +1,83 @@
+name: "Terraform Deploy OCI (OIDC Token Exchange)"
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  id-token: write   # Permite ao runner solicitar o token OIDC assinado pelo GitHub
+  contents: read
+
+jobs:
+  terraform:
+    name: "Terraform Plan & Apply"
+    runs-on: ubuntu-latest
+
+    # Opção A: Injeção das variáveis diretamente no ambiente do Terraform
+    env:
+      TF_VAR_tenancy_ocid: ${{ vars.OCI_TENANCY_OCID }}
+      TF_VAR_region: ${{ vars.OCI_REGION }}
+      TF_VAR_ssh_public_key: ${{ vars.SSH_PUBLIC_KEY }}
+
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Obter OCI Session Token (UPST) via OIDC
+        run: |
+          set -e
+
+          # 1. Solicita o JWT OIDC ao GitHub especificando o Client ID da OCI como Audience
+          AUDIENCE="${{ secrets.OCI_CLIENT_ID }}"
+          OIDC_TOKEN=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -r '.value')
+
+          if [ -z "$OIDC_TOKEN" ] || [ "$OIDC_TOKEN" = "null" ]; then
+            echo "::error::Falha ao obter o ID Token OIDC emitido pelo GitHub Actions."
+            exit 1
+          fi
+
+          # 2. Executa a troca de token no endpoint OAuth2 do Identity Domain da OCI
+          RESPONSE=$(curl -sS -X POST "${{ secrets.OCI_DOMAIN_URL }}/oauth2/v1/token" \
+            -u "${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+            -d "subject_token=${OIDC_TOKEN}" \
+            -d "subject_token_type=urn:ietf:params:oauth:token-type:id_token" \
+            -d "requested_token_type=urn:ietf:params:oauth:token-type:session_token")
+
+          UPST=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+
+          if [ -z "$UPST" ]; then
+            echo "::error::Falha no Token Exchange com a OCI. Resposta da API:"
+            echo "$RESPONSE" | jq .
+            exit 1
+          fi
+
+          # 3. Cria a estrutura ~/.oci esperada pelo provider Terraform
+          mkdir -p ~/.oci
+          echo "$UPST" > ~/.oci/oci_security_token
+
+          cat <<EOF > ~/.oci/config
+          [DEFAULT]
+          tenancy=${{ secrets.OCI_TENANCY_OCID }}
+          region=${{ secrets.OCI_REGION }}
+          security_token_file=~/.oci/oci_security_token
+          EOF
+
+          echo "OCI Session Token (UPST) gravado com sucesso em ~/.oci/oci_security_token."
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        run: terraform init
+
+      - name: Terraform Plan
+        run: terraform plan -input=false
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve -input=false

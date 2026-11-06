@@ -24,7 +24,7 @@ resource "oci_core_instance" "control_plane" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(pathexpand(var.ssh_public_key_path))
+    ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/controlplane.sh"))
   }
 
@@ -59,7 +59,7 @@ resource "oci_core_instance" "worker" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(pathexpand(var.ssh_public_key_path))
+    ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/worker.sh"))
   }
 

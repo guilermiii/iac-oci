@@ -19,7 +19,7 @@ resource "oci_core_instance" "vault" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(pathexpand(var.ssh_public_key_path))
+    ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/vault.sh"))
   }
 
@@ -49,7 +49,7 @@ resource "oci_core_instance" "vpn" {
   }
 
   metadata = {
-    ssh_authorized_keys = file(pathexpand(var.ssh_public_key_path))
+    ssh_authorized_keys = var.ssh_public_key_value
     user_data           = base64encode(file("${path.module}/cli/vpn.sh"))
   }
 

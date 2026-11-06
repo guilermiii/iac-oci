@@ -23,10 +23,15 @@ variable "ubuntu_arm_image_ocid" {
   description = "OCID da imagem oficial Ubuntu 24.04 LTS aarch64 para ARM"
 }
 
-variable "ssh_public_key_path" {
-  type        = string
-  description = "Caminho no filesystem para o arquivo da chave SSH pública"
+variable "ssh_public_key_value" {
+  type = string
+  description = "Valor da chave injetada"
 }
+
+##variable "ssh_public_key_path" {
+##  type        = string
+##  description = "Caminho no filesystem para o arquivo da chave SSH pública"
+##}
 
 variable "tag_project" {
   type        = string
