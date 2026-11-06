@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   id-token: write   # Permite ao runner solicitar o token OIDC assinado pelo GitHub
@@ -17,8 +18,11 @@ jobs:
     # Mapeamento dos secrets para as variáveis de ambiente lidas pelo Terraform
     env:
       TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
+      TF_VAR_compartment_ocid: ${{ secrets.OCI_COMPARTMENT_OCID || 'ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a' }}
       TF_VAR_region: ${{ secrets.OCI_REGION }}
-      TF_VAR_ssh_public_key: ${{ secrets.PUBLIC_KEY_VALUE }}
+      TF_VAR_ssh_public_key_value: ${{ secrets.PUBLIC_KEY_VALUE }}
+      TF_VAR_auth: "SecurityToken"
+      TF_VAR_oci_config_profile: "DEFAULT"
 
     steps:
       - name: Checkout do Repositório
@@ -28,25 +32,58 @@ jobs:
         run: |
           set -e
 
-          # 1. Solicita o ID Token OIDC ao GitHub com a audience apontando para o Client ID
+          mkdir -p ~/.oci
+
+          # 1. Gerar par de chaves RSA efêmero para assinatura das requisições OCI (Proof of Possession)
+          openssl genrsa -out ~/.oci/session_key.pem 2048
+          chmod 600 ~/.oci/session_key.pem
+
+          # Exportar chave pública DER em Base64 para envio à OCI
+          PUBLIC_KEY_DER_B64=$(openssl rsa -in ~/.oci/session_key.pem -pubout -outform DER | base64 -w 0)
+
+          # Calcular fingerprint MD5 da chave pública DER
+          FINGERPRINT=$(openssl rsa -in ~/.oci/session_key.pem -pubout -outform DER | openssl md5 -c | awk '{print $2}')
+
+          # 2. Solicita o ID Token OIDC ao GitHub Actions (tenta com audience do Client ID e fallback se necessário)
+          AUDIENCE="${{ secrets.OCI_CLIENT_ID }}"
           OIDC_TOKEN=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
-            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${{ secrets.OCI_CLIENT_ID }}" | jq -r '.value // empty')
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=${AUDIENCE}" | jq -r '.value // empty')
+
+          if [ -z "$OIDC_TOKEN" ]; then
+            echo "Tentando audience alternativa (https://cloud.oracle.com)..."
+            OIDC_TOKEN=$(curl -sS -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+              "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https://cloud.oracle.com" | jq -r '.value // empty')
+          fi
 
           if [ -z "$OIDC_TOKEN" ]; then
             echo "::error::Falha ao obter o token OIDC do GitHub Actions. Verifique as permissões de id-token."
             exit 1
           fi
 
-          # 2. Executa a troca de token no Identity Domain da OCI
+          # 3. Executa a troca de token no Identity Domain da OCI vinculando a chave pública efêmera
           RESPONSE=$(curl -sS -X POST "${{ secrets.OCI_DOMAIN_URL }}/oauth2/v1/token" \
             -u "${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}" \
             -H "Content-Type: application/x-www-form-urlencoded" \
             --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+            --data-urlencode "requested_token_type=urn:oci:token-type:oci-upst" \
+            --data-urlencode "public_key=${PUBLIC_KEY_DER_B64}" \
             --data-urlencode "subject_token=${OIDC_TOKEN}" \
-            --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:jwt" \
-            --data-urlencode "scope=urn:opc:idm:__myscopes__")
+            --data-urlencode "subject_token_type=jwt")
 
-          UPST=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+          UPST=$(echo "$RESPONSE" | jq -r '.token // .access_token // empty')
+
+          if [ -z "$UPST" ]; then
+            echo "Tentando troca com formato alternativo de requested_token_type..."
+            RESPONSE=$(curl -sS -X POST "${{ secrets.OCI_DOMAIN_URL }}/oauth2/v1/token" \
+              -u "${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}" \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              --data-urlencode "grant_type=urn:ietf:params:oauth:grant-type:token-exchange" \
+              --data-urlencode "requested_token_type=urn:ietf:params:oauth:token-type:session_token" \
+              --data-urlencode "public_key=${PUBLIC_KEY_DER_B64}" \
+              --data-urlencode "subject_token=${OIDC_TOKEN}" \
+              --data-urlencode "subject_token_type=urn:ietf:params:oauth:token-type:id_token")
+            UPST=$(echo "$RESPONSE" | jq -r '.token // .access_token // empty')
+          fi
 
           if [ -z "$UPST" ]; then
             echo "::error::Falha no Token Exchange com a OCI. Resposta recebida:"
@@ -54,18 +91,20 @@ jobs:
             exit 1
           fi
 
-          # 3. Configura o perfil de sessão para o Terraform / OCI SDK
-          mkdir -p ~/.oci
+          # 4. Configura o perfil de sessão para o Terraform / OCI SDK
           echo "$UPST" > ~/.oci/oci_security_token
 
           cat <<EOF > ~/.oci/config
           [DEFAULT]
+          user=not used
+          fingerprint=${FINGERPRINT}
+          key_file=${HOME}/.oci/session_key.pem
           tenancy=${{ secrets.OCI_TENANCY_OCID }}
           region=${{ secrets.OCI_REGION }}
-          security_token_file=~/.oci/oci_security_token
+          security_token_file=${HOME}/.oci/oci_security_token
           EOF
 
-          echo "UPST configurado com sucesso para a sessão."
+          echo "UPST e arquivo ~/.oci/config configurados com sucesso para a sessão."
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,7 +112,8 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init
+        run: |
+          terraform init -backend-config="auth=SecurityToken" -backend-config="config_file_profile=DEFAULT"
 
       - name: Terraform Plan
         run: terraform plan -input=false

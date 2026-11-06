@@ -9,6 +9,8 @@ terraform {
 }
 
 provider "oci" {
+  auth                = var.auth
   config_file_profile = var.oci_config_profile
   region              = var.region
+  tenancy_ocid        = var.tenancy_ocid
 }

@@ -1,6 +1,7 @@
 variable "compartment_ocid" {
   type        = string
   description = "OCID do Compartment onde todos os recursos Always Free serão provisionados"
+  default     = "ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a"
 }
 
 variable "tenancy_ocid" {
@@ -11,11 +12,13 @@ variable "tenancy_ocid" {
 variable "region" {
   type        = string
   description = "Região da OCI (ex: sa-saopaulo-1)"
+  default     = "sa-saopaulo-1"
 }
 
 variable "oci_config_profile" {
   type        = string
   description = "Nome do perfil configurado no arquivo ~/.oci/config (ex: DEFAULT)"
+  default     = "DEFAULT"
 }
 
 variable "ssh_public_key_value" {
@@ -23,34 +26,32 @@ variable "ssh_public_key_value" {
   description = "Valor da chave injetada nas instancias"
 }
 
-##variable "ssh_public_key_path" {
-##  type        = string
-##  description = "Caminho no filesystem para o arquivo da chave SSH pública"
-##}
-
 variable "auth" {
   type        = string
   description = "Tipo de autenticação"
+  default     = "SecurityToken"
 }
-
-
 
 variable "tag_project_arm" {
   type        = string
   description = "Valor da tag Project para as instâncias ARM"
+  default     = "Cluster K8s"
 }
 
 variable "tag_project_vault" {
   type        = string
   description = "Valor da tag Project para a instância x86 Vault (ex: vault)"
+  default     = "vault"
 }
 
 variable "tag_project_vpn" {
   type        = string
   description = "Valor da tag Project para a instância x86 VPN (ex: VpnManagement)"
+  default     = "VpnManagement"
 }
 
 variable "bastion_client_cidr_block_allow_list" {
   type        = list(string)
   description = "Lista de blocos CIDR autorizados a conectar ao OCI Bastion (ex: [\"0.0.0.0/0\"])"
+  default     = ["0.0.0.0/0"]
 }
