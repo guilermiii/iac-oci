@@ -4,6 +4,10 @@ resource "oci_core_public_ip" "lb_fixed_ip" {
   lifetime       = "RESERVED"
   display_name   = "pip-blog-do-zeca-fixed"
 
+  lifecycle {
+    ignore_changes = [private_ip_id]
+  }
+
   freeform_tags = {
     "Project" = var.tag_project
   }
