@@ -15,52 +15,50 @@ O projeto adota os mais elevados padrões da indústria em **segurança em nuvem
 ## 🏗️ Arquitetura da Solução
 
 ```mermaid
-flowchart TB
-    subgraph Internet ["🌐 Internet"]
-        Users["Usuários Finais"]
+flowchart TD
+    subgraph Clients ["🌐 Internet / Acesso Externo"]
+        Users["Usuários Finais (Web)"]
         DevOps["Administrador / DevOps"]
     end
 
-    subgraph OCI_Tenancy ["☁️ Oracle Cloud Infrastructure (Always Free Tier)"]
+    subgraph OCI ["☁️ Oracle Cloud Infrastructure (Always Free)"]
         subgraph VCN ["VCN: 10.0.0.0/16"]
-            IGW["Internet Gateway"]
-            NAT["NAT Gateway (Egress Seguro)"]
-
-            subgraph Public_Subnet ["Subnet Pública (10.0.1.0/24)"]
-                LB["OCI Flexible Load Balancer (10 Mbps)\nIP Público Fixo Reservado"]
+            subgraph PublicSubnet ["Subnet Pública (10.0.1.0/24)"]
+                LB["OCI Flexible Load Balancer (10 Mbps)<br/>IP Público Fixo Reservado"]
+                NAT["NAT Gateway (Egress Seguro)"]
+                IGW["Internet Gateway"]
             end
 
-            subgraph Bastion_Subnet ["Serviço Gerenciado"]
-                Bastion["OCI Bastion Service (Port-Forwarding SSH)"]
+            subgraph BastionService ["Serviço Gerenciado"]
+                Bastion["OCI Bastion Service<br/>(Port-Forwarding SSH)"]
             end
 
-            subgraph Private_Subnet ["Subnet Privada (10.0.2.0/24) - Sem IPs Públicos"]
-                direction TB
-                subgraph K8s_Cluster ["Cluster Kubernetes (ARM Ampere A1)"]
-                    CP["k8s-control-plane\n(2 OCPUs, 12GB RAM, 50GB Boot)"]
-                    Worker["k8s-worker\n(2 OCPUs, 12GB RAM, 50GB Boot)"]
-                end
-
-                subgraph Micro_Instances ["Instâncias x86 Micro"]
-                    Vault["x86-vault\n(1 OCPU, 1GB RAM, 50GB Boot)"]
-                    VPN["x86-vpn\n(1 OCPU, 1GB RAM, 50GB Boot)"]
-                end
+            subgraph PrivateSubnet ["Subnet Privada (10.0.2.0/24)"]
+                CP["k8s-control-plane (ARM64)<br/>2 OCPUs | 12GB RAM | 50GB Boot"]
+                Worker["k8s-worker (ARM64)<br/>2 OCPUs | 12GB RAM | 50GB Boot"]
+                Vault["x86-vault (E2.1.Micro)<br/>1 OCPU | 1GB RAM | 50GB Boot"]
+                VPN["x86-vpn (E2.1.Micro)<br/>1 OCPU | 1GB RAM | 50GB Boot"]
             end
         end
 
-        subgraph Object_Storage ["Bucket Remoto OCI"]
-            TFLock["tf-state-lock-blog\n(Terraform Remote State & Lock)"]
+        subgraph Storage ["OCI Object Storage"]
+            TFLock["Bucket: tf-state-lock-blog<br/>(Remote State & State Locking)"]
         end
     end
 
-    Users -->|HTTPS/HTTP| LB
-    LB -->|Roteamento Interno| Worker
-    DevOps -->|Túnel SSH Seguro| Bastion
-    Bastion -.->|SSH 22 (Privado)| CP
-    Bastion -.->|SSH 22 (Privado)| Worker
-    Bastion -.->|SSH 22 (Privado)| Vault
-    Bastion -.->|SSH 22 (Privado)| VPN
-    Private_Subnet -->|Saída Egress / Updates| NAT
+    Users -->|"HTTP / HTTPS (Porta 80)"| LB
+    LB -->|"Encaminhamento Interno"| Worker
+
+    DevOps -->|"Túnel SSH Seguro"| Bastion
+    Bastion -.->|"SSH Porta 22"| CP
+    Bastion -.->|"SSH Porta 22"| Worker
+    Bastion -.->|"SSH Porta 22"| Vault
+    Bastion -.->|"SSH Porta 22"| VPN
+
+    CP -->|"Egress / Updates"| NAT
+    Worker -->|"Egress / Updates"| NAT
+    Vault -->|"Egress / Updates"| NAT
+    VPN -->|"Egress / Updates"| NAT
     NAT --> IGW
 ```
 
