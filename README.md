@@ -14,6 +14,13 @@ O projeto adota os mais elevados padrões da indústria em **segurança em nuvem
 
 ## 🏗️ Arquitetura da Solução
 
+<p align="center">
+  <img src="assets/architecture.png" alt="Arquitetura OCI Always Free com Kubernetes ARM, Instâncias x86 e GitOps OIDC" width="100%">
+</p>
+
+<details>
+<summary><b>🔍 Expandir Topologia Lógica de Rede</b></summary>
+
 ```mermaid
 flowchart TD
     subgraph Clients ["🌐 Internet / Acesso Externo"]
@@ -61,6 +68,8 @@ flowchart TD
     VPN -->|"Egress / Updates"| NAT
     NAT --> IGW
 ```
+
+</details>
 
 ### Destaques dos Recursos
 - **Cluster Kubernetes (ARM Ampere A1 Flex)**:
