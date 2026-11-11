@@ -4,6 +4,7 @@
 [![Oracle Cloud](https://img.shields.io/badge/Oracle_Cloud-OCI_Always_Free-F80000?style=for-the-badge&logo=oracle&logoColor=white)](https://www.oracle.com/cloud/)
 [![GitHub Actions](https://img.shields.io/badge/GitHub_Actions-CI%2FCD-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
 [![Kubernetes](https://img.shields.io/badge/Kubernetes-ARM64_Cluster-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white)](https://kubernetes.io/)
+[![WireGuard](https://img.shields.io/badge/VPN-WireGuard_Hub-red?style=for-the-badge&logo=wireguard&logoColor=white)](#-hub-vpn-wireguard--duckdns-dinâmico)
 [![Security](https://img.shields.io/badge/Security-OIDC_Token_Exchange-success?style=for-the-badge&logo=opensecurity&logoColor=white)](#-autenticação-federada-oidc-token-exchange)
 
 Projeto modular de **Infrastructure as Code (IaC)** e esteira **GitOps/CI-CD** para provisionamento automatizado de uma arquitetura completa na **Oracle Cloud Infrastructure (OCI)**, 100% elegível ao tier **Always Free**.
@@ -25,26 +26,29 @@ O projeto adota os mais elevados padrões da indústria em **segurança em nuvem
 flowchart TD
     subgraph Clients ["🌐 Internet / Acesso Externo"]
         Users["Usuários Finais (Web)"]
-        DevOps["Administrador / DevOps"]
+        DevOps["Administrador / DevOps (Bastion SSH)"]
+        Notebook["Notebook Admin (Peer WireGuard 10.200.0.2)"]
+        OnPremise["Servidor On-Premise (Peer WireGuard 10.200.0.3)"]
+        DuckDNS["DuckDNS Service (DDNS Sync)"]
     end
 
     subgraph OCI ["☁️ Oracle Cloud Infrastructure (Always Free)"]
         subgraph VCN ["VCN: 10.0.0.0/16"]
             subgraph PublicSubnet ["Subnet Pública (10.0.1.0/24)"]
                 LB["OCI Flexible Load Balancer (10 Mbps)<br/>IP Público Fixo Reservado"]
-                NAT["NAT Gateway (Egress Seguro)"]
+                VPN["x86-vpn (VM.Standard.E2.1.Micro)<br/>WireGuard Hub (10.200.0.1/24)<br/>IP Público Efêmero"]
                 IGW["Internet Gateway"]
             end
 
-            subgraph BastionService ["Serviço Gerenciado"]
-                Bastion["OCI Bastion Service<br/>(Port-Forwarding SSH)"]
+            subgraph BastionService ["Serviço Gerenciado OCI"]
+                Bastion["OCI Bastion Service<br/>(Port-Forwarding SSH Seguro)"]
             end
 
             subgraph PrivateSubnet ["Subnet Privada (10.0.2.0/24)"]
+                NAT["NAT Gateway (Egress Seguro)"]
                 CP["k8s-control-plane (ARM64)<br/>2 OCPUs | 12GB RAM | 50GB Boot"]
                 Worker["k8s-worker (ARM64)<br/>2 OCPUs | 12GB RAM | 50GB Boot"]
                 Vault["x86-vault (E2.1.Micro)<br/>1 OCPU | 1GB RAM | 50GB Boot"]
-                VPN["x86-vpn (E2.1.Micro)<br/>1 OCPU | 1GB RAM | 50GB Boot"]
             end
         end
 
@@ -56,17 +60,23 @@ flowchart TD
     Users -->|"HTTP / HTTPS (Porta 80)"| LB
     LB -->|"Encaminhamento Interno"| Worker
 
-    DevOps -->|"Túnel SSH Seguro"| Bastion
-    Bastion -.->|"SSH Porta 22"| CP
-    Bastion -.->|"SSH Porta 22"| Worker
-    Bastion -.->|"SSH Porta 22"| Vault
-    Bastion -.->|"SSH Porta 22"| VPN
+    Notebook <-->|"WireGuard UDP 51820"| VPN
+    OnPremise <-->|"WireGuard UDP 51820"| VPN
+    VPN -.->|"Túnel P2P Criptografado (10.200.0.0/24)"| Notebook
+    VPN -.->|"Túnel P2P Criptografado (10.200.0.0/24)"| OnPremise
+    VPN -->|"Update DDNS a cada 5 min (HTTPS)"| DuckDNS
+
+    DevOps -->|"Sessão SSH Transitória"| Bastion
+    Bastion -.->|"SSH Porta 22 (Privada)"| CP
+    Bastion -.->|"SSH Porta 22 (Privada)"| Worker
+    Bastion -.->|"SSH Porta 22 (Privada)"| Vault
+    Bastion -.->|"SSH Porta 22 (Privada)"| VPN
 
     CP -->|"Egress / Updates"| NAT
     Worker -->|"Egress / Updates"| NAT
     Vault -->|"Egress / Updates"| NAT
-    VPN -->|"Egress / Updates"| NAT
     NAT --> IGW
+    VPN -->|"Egress Direto"| IGW
 ```
 
 </details>
@@ -76,18 +86,65 @@ flowchart TD
   - 2 instâncias `VM.Standard.A1.Flex` somando **4 OCPUs e 24 GB de RAM** (limite exato gratuito da OCI).
   - Provisionamento automatizado via Cloud-Init/Userdata com `containerd`, `kubeadm`, `kubelet`, `kubectl` e CNI Flannel.
 - **Instâncias x86 Micro**:
-  - 2 instâncias `VM.Standard.E2.1.Micro` (1 OCPU, 1 GB de RAM cada) para serviços utilitários (ex: HashiCorp Vault e VPN).
+  - 2 instâncias `VM.Standard.E2.1.Micro` (1 OCPU, 1 GB de RAM cada) para serviços utilitários:
+    - **`x86-vault`**: HashiCorp Vault alocado na **Subnet Privada**, isolado da internet.
+    - **`x86-vpn`**: Hub WireGuard alocado na **Subnet Pública** com IP Público Efêmero e sincronização dinâmica via DuckDNS.
 - **Armazenamento em Disco**:
   - 4 instâncias de 50 GB = **200 GB de Boot Volumes** (cota máxima do Always Free).
 - **Rede e Isolamento de Borda**:
-  - Subnet Privada sem atribuição de IPs públicos para instâncias (`assign_public_ip = false`).
-  - NAT Gateway fornecendo saída transparente para a internet para atualizações de pacotes e downloads de imagens.
-  - Network Security Groups (NSGs) com regras granulares para as portas do Kubernetes (`6443`, `10250`, `8472 UDP`).
+  - Segregação estrita entre **Subnet Pública (10.0.1.0/24)** e **Subnet Privada (10.0.2.0/24)**.
+  - As instâncias privadas (`k8s-control-plane`, `k8s-worker`, `x86-vault`) não possuem IP público (`assign_public_ip = false`) e utilizam NAT Gateway para saída segura.
+  - A instância `x86-vpn` possui IP público efêmero para receber conexões WireGuard (UDP `51820`), mantendo sua porta SSH (TCP `22`) estritamente restrita à rede privada e ao Bastion.
+  - Network Security Groups (NSGs) com regras granulares para as portas do Kubernetes (`6443`, `10250`, `8472 UDP`) e da VPN.
 - **Load Balancer e IP Fixo**:
   - 1 Load Balancer Flexível de 10 Mbps distribuindo tráfego web.
   - 1 IP Público Reservado permanente associado ao Load Balancer.
 - **Acesso Administrativo Zero-Trust**:
-  - Acesso SSH às máquinas privadas exclusivamente via **OCI Bastion Service** sob demanda, eliminando a necessidade de Jump Hosts abertos para a internet.
+  - Acesso SSH a **todas** as máquinas (incluindo as privadas e a VPN) realizado exclusivamente via **OCI Bastion Service** sob demanda, eliminando qualquer exposição de portas de gerenciamento na internet.
+
+---
+
+## 🔒 Hub VPN WireGuard & DuckDNS Dinâmico
+
+A solução inclui uma instância dedicada (`x86-vpn`) que atua como **Hub WireGuard** seguro e de alto desempenho, estabelecendo uma topologia *hub-and-spoke* para interconectar dispositivos remotos (como o notebook pessoal e runners de CI/CD) ao **servidor on-premise residencial**, sem necessidade de abrir portas SSH ou expor o laboratório doméstico à internet.
+
+```mermaid
+flowchart LR
+    subgraph Clients ["Peers Remotos"]
+        Notebook["💻 Notebook Pessoal<br/>(10.200.0.2/32)"]
+        Runner["🤖 GitHub Runner<br/>(10.200.0.4/32)"]
+    end
+
+    subgraph OCI_VPN ["☁️ OCI Always Free"]
+        VPNServer["🛡️ WireGuard Hub (x86-vpn)<br/>Interface wg0: 10.200.0.1/24<br/>Porta UDP 51820 | DDNS Sync"]
+    end
+
+    subgraph HomeLab ["🏠 Rede Local / On-Premise"]
+        OnPrem["🖥️ Servidor On-Premise<br/>(10.200.0.3/32)<br/>PersistentKeepalive = 25"]
+    end
+
+    Notebook <-->|"Túnel WireGuard Criptografado"| VPNServer
+    Runner -.->|"Túnel WireGuard Criptografado"| VPNServer
+    VPNServer <-->|"Túnel WireGuard (NAT Traversal)"| OnPrem
+    Notebook <===>|"Roteamento Direto entre Peers"| OnPrem
+```
+
+### Principais Características da VPN:
+1. **Roteamento Exclusivo P2P (Zero-Trust OCI)**:
+   - A interface `wg0` opera na faixa isolada `10.200.0.0/24`.
+   - O encaminhamento de pacotes no kernel (`net.ipv4.ip_forward = 1`) é restrito estritamente entre peers da VPN (`iptables -A FORWARD -i wg0 -o wg0 -j ACCEPT`).
+   - Dispositivos conectados à VPN têm acesso exclusivamente ao servidor on-premise (`10.200.0.3/32`), sem qualquer rota ou permissão para alcançar a VCN interna da OCI (`10.0.0.0/16`).
+2. **Sincronização Dinâmica com DuckDNS**:
+   - Para acomodar o IP público efêmero Always Free da OCI, um cron job roda a cada 5 minutos (`/etc/cron.d/duckdns`) executando `/opt/duckdns/duck.sh`.
+   - Mantém o subdomínio DuckDNS (ex: `guilermiii-vpn.duckdns.org`) sempre atualizado com o IP público atual da instância, garantindo reconexão automática e ininterrupta dos peers.
+3. **Gestão Segura de Acesso Administrativo (SSH)**:
+   - O Network Security Group (`vpn_nsg`) libera apenas a porta **UDP `51820`** para `0.0.0.0/0`.
+   - A porta SSH (TCP `22`) **não é exposta publicamente**, sendo autorizada exclusivamente a partir da Subnet Privada (`10.0.2.0/24`), viabilizando acesso exclusivo via **OCI Bastion**.
+4. **Perfis de Clientes Automatizados**:
+   - O script userdata gera automaticamente os pares de chaves criptográficas (`wg genkey`) e os perfis prontos para uso em `/home/ubuntu/wireguard-clients/`:
+     * `notebook.conf` (e `notebook.qr.txt` para importação instantânea em dispositivos móveis/desktop).
+     * `onpremise.conf` (com `PersistentKeepalive = 25` para manter o NAT residencial aberto).
+     * `github-runner.conf` (para execuções automatizadas futuras).
 
 ---
 
@@ -152,27 +209,43 @@ jobs:
   terraform:
     name: "Terraform Plan & Apply"
     runs-on: ubuntu-latest
+
+    env:
+      TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID || secrets.OCI_TENANCY_OCID }}
+      TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_COMPARTMENT_OCID || secrets.OCI_COMPARTMENT_OCID || 'ocid1.compartment.oc1..aaaaaaaa...' }}
+      TF_VAR_region: ${{ secrets.TF_VAR_REGION || secrets.OCI_REGION || 'sa-saopaulo-1' }}
+      TF_VAR_ssh_public_key_value: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY_VALUE || secrets.PUBLIC_KEY_VALUE }}
+      TF_VAR_enable_x86_instances: "true"
+      TF_VAR_auth: "SecurityToken"
+      TF_VAR_oci_config_profile: "DEFAULT"
+      TF_VAR_duckdns_token: ${{ secrets.TF_VAR_DUCKDNS_TOKEN || secrets.DUCKDNS_TOKEN }}
+      TF_VAR_duckdns_domain: ${{ secrets.TF_VAR_DUCKDNS_DOMAIN || secrets.DUCKDNS_DOMAIN || 'guilermiii-vpn' }}
+
     steps:
       - name: Checkout do Repositório
         uses: actions/checkout@v4
 
       - name: Sanitizar URL do Domínio OCI
-        run: echo "OCI_DOMAIN_URL=${RAW_URL%/}" >> $GITHUB_ENV
+        run: |
+          RAW_URL="${{ secrets.OCI_DOMAIN_URL }}"
+          echo "CLEAN_DOMAIN_URL=${RAW_URL%/}" >> $GITHUB_ENV
 
       - name: Run OCI Token Exchange Action
         uses: gtrevorrow/oci-token-exchange-action@v2
         with:
-          domain-url: ${{ env.OCI_DOMAIN_URL }}
-          client-id: ${{ secrets.OCI_CLIENT_ID }}
-          client-secret: ${{ secrets.OCI_CLIENT_SECRET }}
-          tenancy-ocid: ${{ secrets.OCI_TENANCY_OCID }}
-          region: ${{ secrets.OCI_REGION }}
+          oidc_client_identifier: ${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}
+          domain_base_url: ${{ env.CLEAN_DOMAIN_URL }}
+          oci_tenancy: ${{ secrets.TF_VAR_TENANCY_OCID || secrets.OCI_TENANCY_OCID }}
+          oci_region: ${{ secrets.TF_VAR_REGION || secrets.OCI_REGION || 'sa-saopaulo-1' }}
+          oci_profile: 'DEFAULT'
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -input=false -backend-config="auth=SecurityToken" -backend-config="config_file_profile=DEFAULT"
 
       - name: Terraform Plan
         run: terraform plan -input=false
@@ -181,15 +254,21 @@ jobs:
         run: terraform apply -auto-approve -input=false
 ```
 
-### Secrets Utilizadas na Pipeline:
-| Secret | Descrição |
-| :--- | :--- |
-| `OCI_DOMAIN_URL` | URL base do Identity Domain OCI (ex: `https://idcs-xxx.identity.oraclecloud.com`) |
-| `OCI_CLIENT_ID` | Client ID do Confidential Application cadastrado no Identity Domain |
-| `OCI_CLIENT_SECRET` | Client Secret correspondente da aplicação confidencial |
-| `OCI_TENANCY_OCID` | OCID da Tenancy Oracle Cloud |
-| `OCI_REGION` | Região OCI (ex: `sa-saopaulo-1`) |
-| `PUBLIC_KEY_VALUE` | Chave pública SSH injetada no metadata das instâncias provisionadas |
+### Secrets Configuradas na Pipeline (GitHub Actions):
+
+A esteira oferece suporte flexível aos nomes de segredos tanto no padrão do Terraform em maiúsculas (`TF_VAR_*`) quanto no padrão clássico:
+
+| Secret | Descrição | Obrigatório / Opcional |
+| :--- | :--- | :--- |
+| `OCI_DOMAIN_URL` | URL base do Identity Domain OCI (ex: `https://idcs-xxx.identity.oraclecloud.com`) | **Obrigatório** |
+| `OCI_CLIENT_ID` | Client ID da aplicação confidencial cadastrada no Identity Domain | **Obrigatório** |
+| `OCI_CLIENT_SECRET` | Client Secret correspondente da aplicação confidencial | **Obrigatório** |
+| `TF_VAR_COMPARTMENT_OCID` | OCID do Compartment Always Free (suporta `OCI_COMPARTMENT_OCID` e fallback seguro) | **Recomendado** |
+| `TF_VAR_TENANCY_OCID` | OCID da Tenancy Oracle Cloud (suporta `OCI_TENANCY_OCID`) | **Obrigatório** |
+| `TF_VAR_REGION` | Região da OCI (suporta `OCI_REGION` - default: `sa-saopaulo-1`) | Opcional |
+| `TF_VAR_SSH_PUBLIC_KEY_VALUE` | Chave pública SSH injetada nas instâncias (suporta `PUBLIC_KEY_VALUE`) | **Obrigatório** |
+| `TF_VAR_DUCKDNS_TOKEN` | Token secreto de autenticação da API DuckDNS para sincronização da VPN | **Obrigatório p/ VPN** |
+| `TF_VAR_DUCKDNS_DOMAIN` | Subdomínio DuckDNS (suporta `DUCKDNS_DOMAIN` - default: `guilermiii-vpn`) | Opcional |
 
 ---
 
@@ -227,12 +306,12 @@ iac-oci/
 │   └── variables.tf                # Variáveis de entrada do módulo K8s
 ├── module.x86-instances/           # Módulo das Instâncias Micro x86
 │   ├── cli/
-│   │   ├── vault.sh                # Userdata template para Vault
-│   │   └── vpn.sh                  # Userdata template para VPN
-│   ├── compute.tf                  # 2x instâncias E2.1.Micro (protegidas com lifecycle)
+│   │   ├── vault.sh                # Userdata template para HashiCorp Vault
+│   │   └── vpn.sh                  # Automação WireGuard Hub, geração de clientes e DuckDNS via cron
+│   ├── compute.tf                  # 2x instâncias E2.1.Micro (Vault em privada, VPN em pública)
 │   ├── main.tf                     # Entrypoint do módulo x86
-│   ├── outputs.tf                  # Saídas de IPs privados das máquinas x86
-│   ├── security.tf                 # NSGs e isolamento em subnet privada
+│   ├── outputs.tf                  # Saídas de IPs privados e IP público efêmero da VPN
+│   ├── security.tf                 # NSGs dedicados para Vault (privado) e VPN (UDP WireGuard)
 │   └── variables.tf                # Variáveis de entrada do módulo x86
 ├── scripts/
 │   └── ssh-connect.sh              # Conexão SSH segura via OCI Bastion sob demanda
@@ -243,6 +322,7 @@ iac-oci/
 ├── network.tf                      # VCN, Subnets (Pública/Privada), Route Tables e Gateways
 ├── outputs.tf                      # Outputs consolidados (IPs, Bastion ID, K8s joins)
 ├── provider.tf                     # Configuração do provedor OCI
+├── terraform.tfvars.example        # Exemplo documentado de variáveis locais (sem segredos)
 ├── variables.tf                    # Declaração das variáveis do projeto
 └── README.md                       # Documentação técnica do projeto
 ```
@@ -251,7 +331,7 @@ iac-oci/
 
 ## 💻 Conexão Administrativa via OCI Bastion
 
-Por questões de segurança, nenhuma instância possui endereço IP público associado. O acesso administrativo é intermediado pelo **OCI Bastion Service**:
+Por questões de segurança e adoção de práticas **Zero-Trust**, o acesso administrativo SSH a **todas as instâncias do projeto** — incluindo as instâncias 100% privadas (`controlplane`, `worker`, `vault`) e a instância pública de VPN (`vpn`) — é intermediado exclusivamente pelo **OCI Bastion Service** sob demanda. Nenhuma porta SSH (TCP 22) é exposta para a internet:
 
 ```bash
 # Conectar ao nó Control Plane:
