@@ -1,6 +1,7 @@
 variable "compartment_ocid" {
   type        = string
   description = "OCID do Compartment onde todos os recursos Always Free serão provisionados"
+  default     = "ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a"
 }
 
 variable "tenancy_ocid" {

@@ -17,15 +17,15 @@ jobs:
 
     # Mapeamento dos secrets para as variáveis de ambiente lidas pelo Terraform
     env:
-      TF_VAR_tenancy_ocid: ${{ secrets.OCI_TENANCY_OCID }}
-      TF_VAR_compartment_ocid: ${{ secrets.OCI_COMPARTMENT_OCID }}
-      TF_VAR_region: ${{ secrets.OCI_REGION }}
-      TF_VAR_ssh_public_key_value: ${{ secrets.PUBLIC_KEY_VALUE }}
+      TF_VAR_tenancy_ocid: ${{ secrets.TF_VAR_TENANCY_OCID || secrets.OCI_TENANCY_OCID }}
+      TF_VAR_compartment_ocid: ${{ secrets.TF_VAR_COMPARTMENT_OCID || secrets.OCI_COMPARTMENT_OCID || 'ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a' }}
+      TF_VAR_region: ${{ secrets.TF_VAR_REGION || secrets.OCI_REGION || 'sa-saopaulo-1' }}
+      TF_VAR_ssh_public_key_value: ${{ secrets.TF_VAR_SSH_PUBLIC_KEY_VALUE || secrets.PUBLIC_KEY_VALUE }}
       TF_VAR_enable_x86_instances: "true"
       TF_VAR_auth: "SecurityToken"
       TF_VAR_oci_config_profile: "DEFAULT"
-      TF_VAR_duckdns_token: ${{ secrets.DUCKDNS_TOKEN }}
-      TF_VAR_duckdns_domain: ${{ secrets.DUCKDNS_DOMAIN || 'guilermiii-vpn' }}
+      TF_VAR_duckdns_token: ${{ secrets.TF_VAR_DUCKDNS_TOKEN || secrets.DUCKDNS_TOKEN }}
+      TF_VAR_duckdns_domain: ${{ secrets.TF_VAR_DUCKDNS_DOMAIN || secrets.DUCKDNS_DOMAIN || 'guilermiii-vpn' }}
 
     steps:
       - name: Checkout do Repositório
@@ -42,8 +42,8 @@ jobs:
         with:
           oidc_client_identifier: ${{ secrets.OCI_CLIENT_ID }}:${{ secrets.OCI_CLIENT_SECRET }}
           domain_base_url: ${{ env.CLEAN_DOMAIN_URL }}
-          oci_tenancy: ${{ secrets.OCI_TENANCY_OCID }}
-          oci_region: ${{ secrets.OCI_REGION }}
+          oci_tenancy: ${{ secrets.TF_VAR_TENANCY_OCID || secrets.OCI_TENANCY_OCID }}
+          oci_region: ${{ secrets.TF_VAR_REGION || secrets.OCI_REGION || 'sa-saopaulo-1' }}
           oci_profile: 'DEFAULT'
 
       - name: Validar Perfil OCI Configurado
