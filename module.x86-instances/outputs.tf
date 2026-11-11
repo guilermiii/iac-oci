@@ -13,6 +13,11 @@ output "vpn_private_ip" {
   description = "IP Privado da instância VPN Management"
 }
 
+output "vpn_public_ip" {
+  value       = oci_core_instance.vpn.public_ip
+  description = "IP Público Efêmero da instância VPN Management"
+}
+
 output "vpn_id" {
   value       = oci_core_instance.vpn.id
   description = "OCID da instância VPN Management"

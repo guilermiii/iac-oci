@@ -23,6 +23,11 @@ output "vpn_private_ip" {
   description = "IP Privado da instância x86 VPN Management"
 }
 
+output "vpn_public_ip" {
+  value       = var.enable_x86_instances ? module.x86[0].vpn_public_ip : null
+  description = "IP Público Efêmero da instância x86 VPN Management (DuckDNS WireGuard)"
+}
+
 output "discovered_availability_domain" {
   value       = data.oci_identity_availability_domains.ads.availability_domains[0].name
   description = "Availability Domain selecionado automaticamente"

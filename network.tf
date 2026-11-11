@@ -98,10 +98,11 @@ resource "oci_core_security_list" "private_security_list" {
     stateless   = false
   }
 
-  # Ingress interno restrito à VCN (10.0.0.0/16) para K8s, Flannel e comunicação inter-nós
+  # Ingress interno restrito estritamente à Subnet Privada (10.0.2.0/24) para K8s, Flannel e comunicação inter-nós
+  # Bloqueia completamente o tráfego originado da Subnet Pública / Instância VPN
   ingress_security_rules {
     protocol  = "all"
-    source    = "10.0.0.0/16"
+    source    = "10.0.2.0/24"
     stateless = false
   }
 }

@@ -1,7 +1,6 @@
 variable "compartment_ocid" {
   type        = string
   description = "OCID do Compartment onde todos os recursos Always Free serão provisionados"
-  default     = "ocid1.compartment.oc1..aaaaaaaa7qb7s6k27ewo6oyylxa7qguh3xkqlijnhqk7hyz3oyncznn2fx3a"
 }
 
 variable "tenancy_ocid" {
@@ -60,4 +59,17 @@ variable "enable_x86_instances" {
   type        = bool
   description = "Controla o provisionamento das instâncias x86 Micro (Vault e VPN). Mantenha false caso o limite Always Free de 2 instâncias Micro já esteja em uso no tenancy."
   default     = true
+}
+
+variable "duckdns_token" {
+  type        = string
+  sensitive   = true
+  description = "Token secreto de autenticação da API DuckDNS"
+  default     = ""
+}
+
+variable "duckdns_domain" {
+  type        = string
+  description = "Subdomínio DuckDNS para resolução dinâmica da VPN"
+  default     = "guilermiii-vpn"
 }

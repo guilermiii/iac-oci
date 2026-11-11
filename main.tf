@@ -17,7 +17,7 @@ module "blog_do_zeca" {
   boot_volume_size_in_gbs = 50
 }
 
-# Módulo 2: Instâncias x86 Micro (Vault & VPN Management) em Subnet Privada
+# Módulo 2: Instâncias x86 Micro (Vault em Subnet Privada & VPN WireGuard em Subnet Pública)
 module "x86" {
   count  = var.enable_x86_instances ? 1 : 0
   source = "./module.x86-instances"
@@ -25,10 +25,13 @@ module "x86" {
   compartment_ocid         = var.compartment_ocid
   availability_domain_name = data.oci_identity_availability_domains.ads.availability_domains[0].name
   subnet_id                = oci_core_subnet.private_subnet.id
+  public_subnet_id         = oci_core_subnet.public_subnet.id
   ubuntu_x86_image_ocid    = data.oci_core_images.ubuntu_x86.images[0].id
   ssh_public_key_value     = var.ssh_public_key_value
   ##ssh_public_key_path      = var.ssh_public_key_path
   tag_vault               = var.tag_project_vault
   tag_vpn                 = var.tag_project_vpn
+  duckdns_domain          = var.duckdns_domain
+  duckdns_token           = var.duckdns_token
   boot_volume_size_in_gbs = 50
 }

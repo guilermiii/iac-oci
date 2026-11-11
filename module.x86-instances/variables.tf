@@ -10,7 +10,12 @@ variable "availability_domain_name" {
 
 variable "subnet_id" {
   type        = string
-  description = "OCID da Subnet Privada para alocação das instâncias x86 (sem IP público)"
+  description = "OCID da Subnet Privada para alocação da instância Vault (sem IP público)"
+}
+
+variable "public_subnet_id" {
+  type        = string
+  description = "OCID da Subnet Pública para alocação da instância VPN (com IP público efêmero)"
 }
 
 variable "ubuntu_x86_image_ocid" {
@@ -36,6 +41,18 @@ variable "tag_vault" {
 variable "tag_vpn" {
   type        = string
   description = "Tag de identificação do projeto para a instância VPN (VpnManagement)"
+}
+
+variable "duckdns_token" {
+  type        = string
+  sensitive   = true
+  description = "Token de autenticação da API DuckDNS (sigiloso)"
+}
+
+variable "duckdns_domain" {
+  type        = string
+  description = "Subdomínio DuckDNS para resolução dinâmica da VPN"
+  default     = "guilermiii-vpn"
 }
 
 variable "boot_volume_size_in_gbs" {

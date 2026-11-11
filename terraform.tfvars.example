@@ -17,3 +17,7 @@ bastion_client_cidr_block_allow_list = ["0.0.0.0/0"]
 
 # Controle de Instâncias x86 Micro (Vault & VPN)
 enable_x86_instances = true
+
+# DuckDNS DDNS (Secrets)
+duckdns_domain = "guilermiii-vpn"
+duckdns_token  = "seu-token-secreto-duckdns"

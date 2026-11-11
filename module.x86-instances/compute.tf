@@ -46,15 +46,15 @@ resource "oci_core_instance" "vpn" {
   }
 
   create_vnic_details {
-    subnet_id        = var.subnet_id
-    assign_public_ip = false
+    subnet_id        = var.public_subnet_id
+    assign_public_ip = true
     hostname_label   = "vpn"
-    nsg_ids          = [oci_core_network_security_group.x86_nsg.id]
+    nsg_ids          = [oci_core_network_security_group.vpn_nsg.id]
   }
 
   metadata = {
     ssh_authorized_keys = var.ssh_public_key_value
-    user_data           = base64encode(file("${path.module}/cli/vpn.sh"))
+    user_data           = base64encode(replace(replace(file("${path.module}/cli/vpn.sh"), "__DUCKDNS_DOMAIN__", var.duckdns_domain), "__DUCKDNS_TOKEN__", var.duckdns_token))
   }
 
   lifecycle {
